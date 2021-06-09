@@ -1,6 +1,15 @@
 <template>
     <!-- <div ref="stage-parent"> -->
-        <div ref="stage-container"></div>
+        <div>
+            <div ref="stage-container">
+                
+            </div>
+            <div ref="scroll_container" class="scroll_container">
+                <v-img src="@/assets/Arrow-Left-icon.png" class="scroll prevBtn" @click="prev()" ></v-img> 
+                <v-img src="@/assets/Arrow-Right-icon.png" class="scroll nextBtn" @click="next()"></v-img> 
+            </div>
+        </div>
+        
     <!-- </div> -->
 </template>
 
@@ -13,13 +22,17 @@
             list: {
                 type: Array,
             },
-            trigger: {
-                type: Date,
-                default: null
+            shuffling: {
+                type: Boolean,
+                default: false
             },
-            currentIndex: {
-                type: Number,
-                default: -1
+            nextFlag: {
+                type: Boolean, 
+                default: false
+            },
+            prevFlag: {
+                type: Boolean, 
+                default: false
             },
             width: {
                 type: Number,
@@ -60,69 +73,80 @@
                 acc: 100,
                 stage: null,
                 layer: null,
+                currentIndex: -1,
+                totalTime: 0,
+                animationRunning: false,
+                blur: false,
+                isStopping: false,
+                isScrolling: false,
             }
         },
         methods: {
             initSetting() {
-              console.log(">>>>>>>>>>>>>>>>", screen.width);
                 this.stageConfig.height = this.height;
-                this.stageConfig.width = screen.width;
+                this.stageConfig.width = window.innerWidth;
                 this.stageConfig.centerX = this.stageConfig.width / 2;
+                console.log(window.innerWidth);
             },
-            refreshTextSetting() {
-                this.itemConfig.width = this.width;
-                this.itemConfig.fontSize = Math.ceil(this.stageConfig.height / 2.5);
 
-                console.log( this.stageConfig.height);
+            refreshTextSetting() {
+                this.itemConfig.width = this.width + 40;
                 this.itemConfig.height = this.height;
-                this.itemConfig.startX = 0;//-this.itemConfig.width// * 1.3;
+                this.itemConfig.startX = this.stageConfig.centerX - this.itemConfig.width / 2 - this.list.length / 2 * this.itemConfig.width;
             },
+            
             initCanvas() {
                 this.stage = new Konva.Stage({
                     container: this.$refs["stage-container"],
                     width: this.stageConfig.width,
                     height: this.stageConfig.height
                 });
-                this.layer = new Konva.Layer();
+                 this.layer = new Konva.Layer();
                 this.stage.add(this.layer);
+
+               
                 if (this.responsive) {
+                   
                     this.$refs["stage-container"].children[0].style.width = '100%';
                     this.$refs["stage-container"].children[0].style.height = 'auto';
-                    //this.$refs["stage-container"].children[0].style['padding-bottom'] = `${this.stageConfig.height / this.stageConfig.width * 100}%`;
+                    // this.$refs["stage-container"].children[0].style['padding-bottom'] = `${this.stageConfig.height / this.stageConfig.width * 100}%`;
                     this.$refs["stage-container"].children[0].style['position'] = '';
                     // this.$refs["stage-container"].children[0].children[0].style.width = '100%';
                     // this.$refs["stage-container"].children[0].children[0].style.height = '100%';
                     this.$refs["stage-container"].children[0].children[0].style['position'] = '';
                     this.$refs["stage-container"].children[0].children[0].style['object-fit'] = 'contain';
+                    
                 }
             },
+
             drawBorder() {
-                this.layer.add(new Konva.Line({
-                    x: 0,
-                    y: 0,
-                    points: [this.stageConfig.centerX + this.itemConfig.width / 2, 0, this.stageConfig.centerX + this.itemConfig.width / 2, this.itemConfig.height],
-                    stroke: 'black',
-                    dash: [1],
-                    opacity: 0.5,
-                }));
-                this.layer.add(new Konva.Line({
-                    x: 0,
-                    y: 0,
-                    points: [this.stageConfig.centerX - this.itemConfig.width / 2, 0, , this.stageConfig.centerX - this.itemConfig.width / 2, this.itemConfig.height],
-                    stroke: 'black',
-                    dash: [1],
-                    opacity: 0.5,
-                }));
-                this.layer.add(new Konva.Rect({
-                    x: 0,
-                    y: 0,
-                    width: this.stageConfig.width,
-                    height: this.stageConfig.height,
-                    stroke: 'black',
-                    strokeWidth: 5,
-                }));
-                this.stage.draw();
+                // this.layer.add(new Konva.Line({
+                //     x: 0,
+                //     y: 0,
+                //     points: [this.stageConfig.centerX + this.itemConfig.width / 2, 0, this.stageConfig.centerX + this.itemConfig.width / 2, this.itemConfig.height],
+                //     stroke: 'black',
+                //     dash: [1],
+                //     opacity: 0.5,
+                // }));
+                // this.layer.add(new Konva.Line({
+                //     x: 0,
+                //     y: 0,
+                //     points: [this.stageConfig.centerX - this.itemConfig.width / 2, 0, , this.stageConfig.centerX - this.itemConfig.width / 2, this.itemConfig.height],
+                //     stroke: 'black',
+                //     dash: [1],
+                //     opacity: 0.5,
+                // }));
+                // this.layer.add(new Konva.Rect({
+                //     x: 0,
+                //     y: 0,
+                //     width: this.stageConfig.width,
+                //     height: this.stageConfig.height,
+                //     stroke: 'black',
+                //     strokeWidth: 5,
+                // }));
+                // this.stage.draw();
             },
+
             drawItems() {
                 this.items.forEach(e => {
                     e.remove();
@@ -130,27 +154,35 @@
                 this.items = [];
                 let list = this.list.length > 5 ? [...this.list] : [...this.list, ...this.list];
                 list.forEach((e, index) => {
-                    let vm = this;
-                    console.log(vm.width, vm.height);
+                    let self = this;  
                     var theImage = new Image();
-                    // theImage.cache({pixelRatio: 1});
                     theImage.onload = function(){
                       let img = new Konva.Image({
                         image: theImage,
-                        width: vm.width, 
-                        height: vm.height,
-                        x: index * vm.itemConfig.width * 1.2+ vm.itemConfig.startX,
+                        width: self.itemConfig.width - 40, 
+                        height: self.itemConfig.height - 20,
+                        x:  index * self.itemConfig.width + self.itemConfig.startX + 10,
+                        y: 10,
                       });
-                     
-                      vm.layer.add(img);
-                      vm.items.push(img);
+                      img.cache();
+                      img.filters([Konva.Filters.Blur]);
+                      self.layer.add(img);
+                      self.items.push(img);
                     }
 
                     let src = require('@/assets/Cards/Prompt/' + e.text + '.png');
                     theImage.src = src;
                 
                 });
+
                 this.stage.draw();
+
+                this.currentIndex = this.list.length / 2;
+                this.currentItem = this.items[this.currentIndex];
+                this.updateBlur();
+
+                this.$refs["scroll_container"].style.width = '100%'
+
             },
 
             drawAll() {
@@ -160,31 +192,138 @@
             },
 
             start() {
+                this.blur = false;
                 this.acc = 100;
                 this.stopping = false;
-                this.currentItem = this.currentIndex === -1 ?
-                    this.items[this.random(0, this.items.length - 1)] : this.items[this.currentIndex];
+                this.currentIndex = this.random(0, this.items.length - 1);
+                this.currentItem = this.items[this.currentIndex];
+                this.items.forEach(e => {
+                    if (e.blurRadius() == 0){
+                        e.blurRadius(10);
+                    }
+                });
                 this.animation.start();
             },
+
+            stop(){
+                if (this.isStopping === true){
+                    return;
+                }
+                this.isStopping = true;
+                
+                this.tweenMoveItems(this.stageConfig.width / 2 - this.currentItem.x() - this.itemConfig.width / 2 + 10);
+                this.updateBlur();
+                this.blur = true;
+                this.totalTime = 0;
+                this.animation.stop();
+                this.stopping = false;
+                this.acc = 0;
+                this.complete();
+            },
+
+            next(){
+                if (this.isScrolling == true){
+                    return;
+                }
+                this.isScrolling = true
+                this.items.forEach((e, index) => {
+                    let self = this
+                    let tween = new Konva.Tween({
+                        node: e,
+                        duration: 0.3,
+                        x: e.x() +   this.itemConfig.width,
+                        onUpdate: function(){
+                            self.componsate(index);
+                        },
+                        onFinish: function(){
+                            if (index == self.items.length - 1){
+                                self.updateBlur();
+                                self.isScrolling = false;
+                            }
+                        }
+                    });
+                    tween.play();
+                });
+            },
+
+            prev(){
+                if (this.isScrolling == true){
+                    return;
+                }
+                this.isScrolling = true
+                this.items.forEach((e, index) => {
+                    let self = this
+                    let tween = new Konva.Tween({
+                        node: e,
+                        duration: 0.3,
+                        x: e.x() - this.itemConfig.width,
+                        onUpdate: function(){
+                            self.componsate(index);
+                        },
+                        onFinish: function(){
+                            if (index == self.items.length - 1){
+                                self.updateBlur();
+                                self.isScrolling = false;
+                            }
+                        }
+                    });
+                    tween.play();
+                });
+            },
+
+            updateBlur(){
+                this.items.forEach(e => {
+                    if (e == this.currentItem){
+                        e.blurRadius(0);
+                    }else{
+                        if (e.blurRadius() == 0){
+                            e.blurRadius(10);
+                        }
+                    }
+                });
+            },
+
+            componsate(index){
+                let item = this.items[index];
+                let x = item.x();
+                if (x > this.stageConfig.centerX + this.items.length / 2 * this.itemConfig.width - this.itemConfig.width / 2){
+                    x = (x - (this.stageConfig.centerX + this.items.length / 2 * this.itemConfig.width - this.itemConfig.width / 2)) + this.itemConfig.startX;
+                }
+                
+                if (x < this.itemConfig.startX){
+                    x = (x - this.itemConfig.startX) + (this.stageConfig.centerX + this.items.length / 2 * this.itemConfig.width - this.itemConfig.width / 2);
+                }
+                if (x < this.stageConfig.width / 2 + this.itemConfig.width / 2 && x >= this.stageConfig.width / 2 - this.itemConfig.width / 2){
+                    this.currentItem = item; 
+                    this.currentIndex = index;
+                }
+                item.setX(x);  
+            }, 
 
             complete() {
                 this.$emit('onComplete', this.currentItem.attrs.data);
             },
 
             moveItems(acc) {
-                this.items.forEach(e => {
-                    let x = (acc + e.x() - this.itemConfig.startX) %
-                        (this.items.length * this.itemConfig.width) + this.itemConfig.startX;
-                    e.setX(x);
+                this.items.forEach((e, index) => {
+                    let x = (acc + e.x())
+                    e.setX(x);  
+                    this.componsate(index);
                 });
             },
 
-            tweenMoveItems(distance) {
-                this.items.forEach(e => {
+            tweenMoveItems(distance, time = 0.01) {
+                this.items.forEach((e, index) => {
+                    let self = this
                     let tween = new Konva.Tween({
                         node: e,
-                        duration: 0.1,
+                        duration: time,
                         x: e.x() + distance,
+                        onFinish: function(){
+                            if (index == self.items.length - 1){
+                                self.isStopping = false;
+                            }
+                        }
                     });
                     tween.play();
                 });
@@ -192,21 +331,21 @@
 
             createAnimation() {
                 let self = this;
-                this.animation = new Konva.Animation(function () {
+                this.totalTime = 0;
+                this.animation = new Konva.Animation(function (frame) {
                     self.moveItems(self.acc);
-                    if (!self.stopping && self.acc > 25) {
-                        self.acc = Math.max(self.acc - Math.random(), 25);
-                    } else {
+                    self.totalTime = self.totalTime + frame.timeDiff
+                    if (!self.stopping && self.totalTime > self.random(2000, 3000)) {
                         self.stopping = true;
                     }
-                    if (self.stopping && self.currentItem.x() > 0 && self.currentItem.x() < self.stageConfig.centerX) {
-                        self.tweenMoveItems(self.stageConfig.centerX - (self.currentItem.x() + self.itemConfig.fontSize / 2.5));
-                        self.acc = 0;
-                        self.animation.stop();
-                        self.complete();
-                    } else if (self.stopping && self.currentItem.x() > self.stageConfig.centerX) {
-                        self.acc = Math.max(self.acc - Math.random() % 0.2, 5);
+
+                    if (self.stopping && self.acc > 0) {
+                        self.acc =  self.acc - Math.max(self.acc - Math.random(), 5);
                     }
+                         
+                    if (self.stopping && self.acc < 5) {
+                        self.stop();
+                    } 
                 }, this.layer);
             },
             random(min, max) {
@@ -214,14 +353,24 @@
             }
         },
         watch: {
-            trigger() {
-                this.start();
+            shuffling() {
+                if (this.shuffling == false){
+                    this.stop();
+                }else{
+                    this.start();
+                }
             },
             list() {
                 if (this.stage != null) {
                     this.drawAll();
                 }
             },
+            nextFlag(){
+                this.next();
+            },
+            prevFlag(){
+                this.prev();
+            }
         },
         mounted() {
             this.initSetting();
@@ -233,5 +382,33 @@
     }
 </script>
 
-<style scoped lang="scss">
+<style type='text/css' scoped>
+    .scroll{
+        position: absolute;
+        top: 15%;
+        height: 70%;
+        width: 100px;
+        opacity: 0;
+        transition: 0.5s;
+    }
+
+    .scroll:hover{
+        opacity: 0.5;
+    }
+
+    .prevBtn{
+        left: 0px;
+    }
+
+    .nextBtn{
+        right: 0px;
+    }
+    
+    .scroll_container{
+        position: absolute;
+        width: 100%;
+        height: 350px;
+        top: 1%;
+    }
+
 </style>
